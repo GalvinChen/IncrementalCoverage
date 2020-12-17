@@ -1,6 +1,6 @@
 plugins {
     id 'com.android.application'
-    id 'com.galvin.code-coverage' version '0.1'
+    id 'io.github.galvin.code-coverage' version '0.0.1'
 }
 
 android {

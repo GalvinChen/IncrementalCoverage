@@ -4,13 +4,13 @@ plugins {
     id 'com.gradle.plugin-publish' version '0.12.0'
 }
 
-group 'com.galvin'
-version '0.2'
+group 'io.github'
+version '0.0.1'
 
 gradlePlugin {
     plugins {
         codeCoveragePlugin {
-            id = 'com.galvin.code-coverage'
+            id = 'io.github.galvin.code-coverage'
             implementationClass = 'com.galvin.plugin.CodeCoveragePlugin'
             displayName = 'Android Code Coverage Plugin'
             description = 'A gradle plugin for Android which can inspect incremental code test coverage'

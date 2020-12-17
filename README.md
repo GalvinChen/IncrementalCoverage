@@ -4,37 +4,43 @@ IncrementalCoverage is an Android gradle plugin which you can use it to inspect 
 
 ### How to use
 
-apply the plugin
+1. Apply the plugin.
 
 ```java
 plugins {
     id 'com.android.application'
-    id 'com.galvin.code-coverage' version '0.2'
+    id 'io.github.galvin.code-coverage' version '0.0.1'
 }
 ```
 
-define some code to generate the execution file
+2. Define some code to generate the execution file. Such as, you can add the code when activity onDestroy, but you
+should guarantee that onDestroy must execute before generating coverage report. Either you can insert a Button, 
+use it to generate the execution file. You can see the demo.
 
 ```java
-try {
-  RT.dumpCoverageData(new File(Environment.getExternalStorageDirectory() + "/coverage.exec"), false);
-} catch (IOException e) {
-  e.printStackTrace();
+@Override
+protected void onDestroy() {
+    super.onDestroy();
+    try {
+        RT.dumpCoverageData(new File(Environment.getExternalStorageDirectory() + "/coverage.exec"), false);
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
 }
 ```
 
-define your diff in local.properties
-
-we use the command `git diff baseline revision -U0` to get diff source lines
+3. Define your diff in local.properties. We use the command `git diff baseline revision -U0` to get diff source lines.
+Actually, you should always keep the revision = "HEAD" because you may change some source files after revision. In 
+this situation, the plugin is broken. 
 
 ```properties
 revision=HEAD
 baseline=HEAD~1
 ```
 
-run the app, test your diff code
+4. run the app, test your diff code in app.
 
-run gradle task `./gradlew generateCoverageReport` to get the coverage report
+5. run gradle task `./gradlew generateCoverageReport` to get the coverage report.
 
 ### Example
 
