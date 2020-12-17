@@ -2,6 +2,7 @@ package com.galvin.plugin.task;
 
 import com.android.build.gradle.AppExtension;
 import com.galvin.plugin.CodeCoveragePlugin;
+import com.galvin.plugin.PluginConstants;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
@@ -16,15 +17,38 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.jacoco.core.analysis.Analyzer;
 import org.jacoco.core.analysis.CoverageBuilder;
+import org.jacoco.core.analysis.CoverageNodeImpl;
 import org.jacoco.core.analysis.IBundleCoverage;
+import org.jacoco.core.analysis.IClassCoverage;
+import org.jacoco.core.analysis.ICounter;
+import org.jacoco.core.analysis.ICoverageNode;
+import org.jacoco.core.analysis.IMethodCoverage;
+import org.jacoco.core.analysis.IPackageCoverage;
+import org.jacoco.core.analysis.ISourceFileCoverage;
+import org.jacoco.core.internal.analysis.CounterImpl;
+import org.jacoco.core.internal.analysis.LineImpl;
+import org.jacoco.core.internal.analysis.SourceNodeImpl;
 import org.jacoco.core.tools.ExecFileLoader;
 import org.jacoco.report.DirectorySourceFileLocator;
 import org.jacoco.report.FileMultiReportOutput;
 import org.jacoco.report.IReportVisitor;
 import org.jacoco.report.html.HTMLFormatter;
+import org.jacoco.report.internal.html.resources.Styles;
+import org.jacoco.report.internal.html.table.BarColumn;
+import org.jacoco.report.internal.html.table.LabelColumn;
+import org.jacoco.report.internal.html.table.PercentageColumn;
+import org.jacoco.report.internal.html.table.Table;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.lang.reflect.Field;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class CodeCoverageReportTask extends DefaultTask {
 
@@ -57,6 +81,9 @@ public class CodeCoverageReportTask extends DefaultTask {
     @Internal
     private File sourceDirectory;
 
+    @Internal
+    private Map<String, List<Integer>> mChangedLinesPerFile;
+
     @TaskAction
     void generateReport() {
         AppExtension appExtension = getProject().getExtensions().findByType(AppExtension.class);
@@ -69,8 +96,13 @@ public class CodeCoverageReportTask extends DefaultTask {
         mLogger.lifecycle("sourceDirectory" + sourceDirectory.getPath());
         mLogger.lifecycle("reportDirectory" + reportDirectory.get().getAsFile().getPath());
         try {
+            File diffNameToLinesFile = new File(getProject().getBuildDir() + PluginConstants.INPUT_CHANGED_LINES_PER_FILE);
+            if (diffNameToLinesFile.exists()) {
+                ObjectInputStream objectInputStream = new ObjectInputStream(new FileInputStream(diffNameToLinesFile));
+                mChangedLinesPerFile = (HashMap<String, List<Integer>>) objectInputStream.readObject();
+            }
             create();
-        } catch (IOException e) {
+        } catch (IOException | ClassNotFoundException e) {
             mLogger.error(e.getMessage(), e);
         }
         File indexHtml = new File(reportDirectory.get().getAsFile(), "index.html");
@@ -101,8 +133,99 @@ public class CodeCoverageReportTask extends DefaultTask {
         // report
         final IBundleCoverage bundleCoverage = analyzeStructure();
 
-        createReport(bundleCoverage);
+        try {
+            if (mChangedLinesPerFile != null && mChangedLinesPerFile.size() > 0) {
+                for (Map.Entry<String, List<Integer>> entry : mChangedLinesPerFile.entrySet()) {
+                    mLogger.lifecycle("changedFile:" + entry.getKey());
+                    mLogger.lifecycle("changedLines:" + entry.getValue());
+                }
+                modifyCoverageForOnlyShowChangedLines(bundleCoverage);
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            mLogger.error(e.getMessage(), e);
+        }
 
+        createReport(bundleCoverage);
+    }
+
+    private void modifyCoverageForOnlyShowChangedLines(IBundleCoverage bundleCoverage) throws NoSuchFieldException,
+            IllegalAccessException {
+        Field lineCounterField = CoverageNodeImpl.class.getDeclaredField("lineCounter");
+        lineCounterField.setAccessible(true);
+        Field linesField = SourceNodeImpl.class.getDeclaredField("lines");
+        linesField.setAccessible(true);
+
+        int bundleMissed = 0;
+        int bundleTotal = 0;
+        Collection<IPackageCoverage> packages = bundleCoverage.getPackages();
+        for (IPackageCoverage packageCoverage : packages) {
+            Collection<ISourceFileCoverage> sourceFilesCoverage = packageCoverage.getSourceFiles();
+            int packageMissed = 0;
+            int packageTotal = 0;
+            for (ISourceFileCoverage sourceFileCoverage : sourceFilesCoverage) {
+                String fileName = sourceFileCoverage.getName();
+                if (!mChangedLinesPerFile.containsKey(fileName)) {
+                    continue;
+                }
+                List<Integer> lineNumbers = mChangedLinesPerFile.get(fileName);
+
+                LineImpl[] lines = (LineImpl[]) linesField.get(sourceFileCoverage);
+                int sourceFileMissed = 0;
+                for (int i = sourceFileCoverage.getFirstLine(); i <= sourceFileCoverage.getLastLine(); i++) {
+                    if (!lineNumbers.contains(i)) {
+                        lines[i - sourceFileCoverage.getFirstLine()] = LineImpl.EMPTY;
+                    } else {
+                        LineImpl line = lines[i - sourceFileCoverage.getFirstLine()];
+                        if (line.getStatus() == ICounter.NOT_COVERED) {
+                            sourceFileMissed++;
+                        }
+                    }
+                }
+                lineCounterField.set(sourceFileCoverage, CounterImpl.getInstance(sourceFileMissed, lineNumbers.size() - sourceFileMissed));
+                packageMissed += sourceFileMissed;
+                packageTotal += lineNumbers.size();
+            }
+            lineCounterField.set(packageCoverage, CounterImpl.getInstance(packageMissed, packageTotal - packageMissed));
+            bundleMissed += packageMissed;
+            bundleTotal += packageTotal;
+
+            Collection<IClassCoverage> classes = packageCoverage.getClasses();
+            for (IClassCoverage classCoverage : classes) {
+                String fileName = classCoverage.getSourceFileName();
+                if (!mChangedLinesPerFile.containsKey(fileName)) {
+                    continue;
+                }
+                List<Integer> lineNumbers = mChangedLinesPerFile.get(fileName);
+
+                Collection<IMethodCoverage> methods = classCoverage.getMethods();
+                int classMissed = 0;
+                int classTotal = 0;
+                for (IMethodCoverage methodCoverage : methods) {
+                    LineImpl[] lines = (LineImpl[]) linesField.get(methodCoverage);
+                    if (lines == null) continue;
+                    int methodMissed = 0;
+                    int methodTotal = 0;
+                    for (int i = methodCoverage.getFirstLine(); i <= methodCoverage.getLastLine(); i++) {
+                        if (!lineNumbers.contains(i)) {
+                            lines[i - methodCoverage.getFirstLine()] = LineImpl.EMPTY;
+                        } else {
+                            LineImpl line = lines[i - methodCoverage.getFirstLine()];
+                            if (line != null) {
+                                methodTotal++;
+                                if (line.getStatus() == ICounter.NOT_COVERED) {
+                                    methodMissed++;
+                                }
+                            }
+                        }
+                    }
+                    lineCounterField.set(methodCoverage, CounterImpl.getInstance(methodMissed, methodTotal - methodMissed));
+                    classMissed += methodMissed;
+                    classTotal += methodTotal;
+                }
+                lineCounterField.set(classCoverage, CounterImpl.getInstance(classMissed, classTotal - classMissed));
+            }
+        }
+        lineCounterField.set(bundleCoverage, CounterImpl.getInstance(bundleMissed, bundleTotal - bundleMissed));
     }
 
     private void createReport(final IBundleCoverage bundleCoverage)
@@ -110,7 +233,21 @@ public class CodeCoverageReportTask extends DefaultTask {
 
         // Create a concrete report visitor based on some supplied
         // configuration. In this case we use the defaults
-        final HTMLFormatter htmlFormatter = new HTMLFormatter();
+        final HTMLFormatter htmlFormatter = new HTMLFormatter() {
+            @Override
+            public Table getTable() {
+                if (mChangedLinesPerFile == null || mChangedLinesPerFile.size() == 0) {
+                    return super.getTable();
+                }
+                final Table t = new Table();
+                t.add("Element", null, new LabelColumn(), false);
+                t.add("Missed Lines", Styles.BAR, new BarColumn(ICoverageNode.CounterEntity.LINE,
+                        Locale.getDefault()), true);
+                t.add("Cov.", Styles.CTR2,
+                        new PercentageColumn(ICoverageNode.CounterEntity.LINE, Locale.getDefault()), false);
+                return t;
+            }
+        };
         final IReportVisitor visitor = htmlFormatter
                 .createVisitor(new FileMultiReportOutput(reportDirectory.getAsFile().get()));
 

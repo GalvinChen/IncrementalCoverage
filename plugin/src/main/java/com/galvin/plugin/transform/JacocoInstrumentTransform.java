@@ -23,9 +23,11 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -106,6 +108,14 @@ public class JacocoInstrumentTransform extends Transform {
                 logger.info("changedFile:" + entry.getKey());
                 logger.info("changedLines:" + entry.getValue());
             }
+
+            File diffNameToLinesFile = new File(project.getBuildDir() + PluginConstants.INPUT_CHANGED_LINES_PER_FILE);
+            if (!diffNameToLinesFile.exists()) {
+                diffNameToLinesFile.getParentFile().mkdirs();
+            }
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(new FileOutputStream(diffNameToLinesFile));
+            objectOutputStream.writeObject(mChangedLinesPerFile);
+            objectOutputStream.close();
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
         }
