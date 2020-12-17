@@ -6,7 +6,19 @@ IncrementalCoverage is an Android gradle plugin which you can use it to inspect 
 
 1. Apply the plugin.
 
-```java
+```groovy
+settings.gradle
+
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        jcenter()
+    }
+}
+```
+
+```groovy
 plugins {
     id 'com.android.application'
     id 'io.github.galvin.code-coverage' version '0.0.1'
@@ -16,6 +28,14 @@ plugins {
 2. Define some code to generate the execution file. Such as, you can add the code when activity onDestroy, but you
 should guarantee that onDestroy must execute before generating coverage report. Either you can insert a Button, 
 use it to generate the execution file. You can see the demo.
+
+```groovy
+app: build.gradle
+
+dependencies {
+    compileOnly 'org.jacoco:org.jacoco.agent:0.8.4:runtime'
+}
+```
 
 ```java
 @Override

@@ -1,10 +1,8 @@
 pluginManagement {
     repositories {
-        mavenCentral()
+        gradlePluginPortal()
         google()
         jcenter()
-        mavenLocal()
-        gradlePluginPortal()
     }
 }
 include ':plugin'
