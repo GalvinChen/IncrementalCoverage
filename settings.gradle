@@ -1,0 +1,12 @@
+pluginManagement {
+    repositories {
+        mavenCentral()
+        google()
+        jcenter()
+        mavenLocal()
+        gradlePluginPortal()
+    }
+}
+include ':plugin'
+include ':app'
+rootProject.name = "IncrementalCoverage"

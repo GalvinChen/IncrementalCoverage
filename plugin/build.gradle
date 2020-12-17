@@ -1,0 +1,43 @@
+plugins {
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    id 'com.gradle.plugin-publish' version '0.12.0'
+}
+
+group 'com.galvin'
+version '0.1'
+
+gradlePlugin {
+    plugins {
+        codeCoveragePlugin {
+            id = 'com.galvin.code-coverage'
+            implementationClass = 'com.galvin.plugin.CodeCoveragePlugin'
+            displayName = 'Android Code Coverage Plugin'
+            description = 'A gradle plugin for Android which can inspect incremental code test coverage'
+        }
+    }
+}
+
+pluginBundle {
+    website = 'https://github.com/GalvinChen/IncrementalCoverage'
+    vcsUrl = 'git@github.com:GalvinChen/IncrementalCoverage.git'
+    tags = ['Android', 'Jacoco', 'CodeCoverage', 'GradlePlugin']
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+    }
+}
+
+repositories {
+    mavenCentral()
+    google()
+    jcenter()
+}
+
+dependencies {
+    testImplementation group: 'junit', name: 'junit', version: '4.13.1'
+    implementation 'com.android.tools.build:gradle:4.1.1'
+    implementation 'org.jacoco:org.jacoco.report:0.8.4'
+}
