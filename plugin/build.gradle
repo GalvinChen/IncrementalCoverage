@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.galvin'
-version '0.1'
+version '0.2'
 
 gradlePlugin {
     plugins {
@@ -20,7 +20,7 @@ gradlePlugin {
 
 pluginBundle {
     website = 'https://github.com/GalvinChen/IncrementalCoverage'
-    vcsUrl = 'git@github.com:GalvinChen/IncrementalCoverage.git'
+    vcsUrl = 'https://github.com/GalvinChen/IncrementalCoverage'
     tags = ['Android', 'Jacoco', 'CodeCoverage', 'GradlePlugin']
 }
 

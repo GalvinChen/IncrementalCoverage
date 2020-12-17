@@ -9,7 +9,7 @@ apply the plugin
 ```java
 plugins {
     id 'com.android.application'
-    id 'com.galvin.code-coverage' version '0.1'
+    id 'com.galvin.code-coverage' version '0.2'
 }
 ```
 
